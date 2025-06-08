@@ -1,0 +1,24 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node ./src/server",
+    "start-dev": "nodemon ./src/server",
+    "start-prod": "NODE_ENV=production node ./src/server.js",
+    "migrate": "node-pg-migrate"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  },
+  "dependencies": {
+    "@hapi/hapi": "^21.4.0",
+    "dotenv": "^16.5.0",
+    "node-pg-migrate": "^8.0.1",
+    "pg": "^8.16.0"
+  }
+}
