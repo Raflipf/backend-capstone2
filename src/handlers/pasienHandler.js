@@ -1,18 +1,23 @@
-const pasiens = require("../models/pasiens");
+const Patient = require("../models/patient");
 
-const addPasienHandler = (request, h) => {
+const addPasienHandler = async (request, h) => {
   const {
-    nama,
+    name,
     nik,
-    tanggal_lahir,
-    jenis_kelamin,
-    alamat,
-    no_telp,
+    birthDate,
+    gender,
+    bloodType,
+    phone,
     email,
-    foto,
+    address,
+    emergencyContact,
+    photos,
+    embeddings,
+    registrationDate,
+    status,
   } = request.payload;
 
-  if (!nama || !nik) {
+  if (!name || !nik) {
     const response = h.response({
       status: "fail",
       message: "Gagal menambahkan pasien. Nama dan NIK wajib diisi",
@@ -21,90 +26,110 @@ const addPasienHandler = (request, h) => {
     return response;
   }
 
-  const existingPasien = pasiens.find((p) => p.nik === nik);
-  if (existingPasien) {
-    const response = h.response({
-      status: "fail",
-      message: "Gagal menambahkan pasien. NIK sudah terdaftar",
+  try {
+    const existingPasien = await Patient.findOne({ nik });
+    if (existingPasien) {
+      const response = h.response({
+        status: "fail",
+        message: "Gagal menambahkan pasien. NIK sudah terdaftar",
+      });
+      response.code(400);
+      return response;
+    }
+
+    const newPasien = new Patient({
+      name,
+      nik,
+      birthDate,
+      gender,
+      bloodType,
+      phone,
+      email,
+      address,
+      emergencyContact,
+      photos,
+      embeddings,
+      registrationDate,
+      status,
+      created_at: new Date(),
+      updated_at: new Date(),
     });
-    response.code(400);
+
+    const savedPasien = await newPasien.save();
+
+    const response = h.response({
+      status: "success",
+      message: "Pasien berhasil ditambahkan",
+      data: { pasien_id: savedPasien._id },
+    });
+    response.code(201);
+    return response;
+  } catch (error) {
+    const response = h.response({
+      status: "error",
+      message: "Terjadi kesalahan saat menambahkan pasien",
+      error: error.message,
+    });
+    response.code(500);
     return response;
   }
-
-  const pasien_id =
-    pasiens.length > 0 ? pasiens[pasiens.length - 1].pasien_id + 1 : 1;
-  const createdAt = new Date().toISOString();
-
-  const newPasien = {
-    pasien_id,
-    nama,
-    nik,
-    tanggal_lahir,
-    jenis_kelamin,
-    alamat,
-    no_telp,
-    email,
-    foto,
-    createdAt,
-  };
-
-  pasiens.push(newPasien);
-
-  const response = h.response({
-    status: "success",
-    message: "Pasien berhasil ditambahkan",
-    data: { pasien_id },
-  });
-  response.code(201);
-  return response;
 };
 
-const getAllPasienHandler = (request, h) => {
-  return {
-    status: "success",
-    data: { pasiens },
-  };
-};
-
-const getPasienByIdHandler = (request, h) => {
-  const { pasienId } = request.params;
-
-  const pasien = pasiens.find((p) => p.pasien_id === parseInt(pasienId));
-
-  if (pasien) {
+const getAllPasienHandler = async (request, h) => {
+  try {
+    const pasiens = await Patient.find();
     return {
       status: "success",
-      data: { pasien },
+      data: { pasiens },
     };
+  } catch (error) {
+    const response = h.response({
+      status: "error",
+      message: "Terjadi kesalahan saat mengambil data pasien",
+      error: error.message,
+    });
+    response.code(500);
+    return response;
   }
-
-  const response = h.response({
-    status: "fail",
-    message: "Pasien tidak ditemukan",
-  });
-  response.code(404);
-  return response;
 };
 
-const updatePasienByIdHandler = (request, h) => {
+const getPasienByIdHandler = async (request, h) => {
   const { pasienId } = request.params;
-  const {
-    nama,
-    nik,
-    tanggal_lahir,
-    jenis_kelamin,
-    alamat,
-    no_telp,
-    email,
-    foto,
-  } = request.payload;
 
-  const index = pasiens.findIndex((p) => p.pasien_id === parseInt(pasienId));
+  try {
+    const pasien = await Patient.findById(pasienId);
+    if (pasien) {
+      return {
+        status: "success",
+        data: { pasien },
+      };
+    } else {
+      const response = h.response({
+        status: "fail",
+        message: "Pasien tidak ditemukan",
+      });
+      response.code(404);
+      return response;
+    }
+  } catch (error) {
+    const response = h.response({
+      status: "error",
+      message: "Terjadi kesalahan saat mengambil data pasien",
+      error: error.message,
+    });
+    response.code(500);
+    return response;
+  }
+};
 
-  if (index !== -1) {
-    if (nik && nik !== pasiens[index].nik) {
-      const existingPasien = pasiens.find((p) => p.nik === nik);
-      if (existingPasien) {
+const updatePasienByIdHandler = async (request, h) => {
+  const { pasienId } = request.params;
+  const updateData = request.payload;
+
+  try {
+    if (updateData.nik) {
+      const existingPasien = await Patient.findOne({ nik: updateData.nik });
+      if (existingPasien && existingPasien._id.toString() !== pasienId) {
         const response = h.response({
           status: "fail",
           message: "Gagal memperbarui pasien. NIK sudah terdaftar",
@@ -114,56 +139,68 @@ const updatePasienByIdHandler = (request, h) => {
       }
     }
 
-    pasiens[index] = {
-      ...pasiens[index],
-      nama: nama || pasiens[index].nama,
-      nik: nik || pasiens[index].nik,
-      tanggal_lahir: tanggal_lahir || pasiens[index].tanggal_lahir,
-      jenis_kelamin: jenis_kelamin || pasiens[index].jenis_kelamin,
-      alamat: alamat || pasiens[index].alamat,
-      no_telp: no_telp || pasiens[index].no_telp,
-      email: email || pasiens[index].email,
-      foto: foto || pasiens[index].foto,
-      updatedAt: new Date().toISOString(),
-    };
+    const updatedPasien = await Patient.findByIdAndUpdate(
+      pasienId,
+      { ...updateData, updated_at: new Date() },
+      { new: true }
+    );
 
+    if (updatedPasien) {
+      const response = h.response({
+        status: "success",
+        message: "Pasien berhasil diperbarui",
+        data: { pasien: updatedPasien },
+      });
+      response.code(200);
+      return response;
+    } else {
+      const response = h.response({
+        status: "fail",
+        message: "Gagal memperbarui pasien. Id tidak ditemukan",
+      });
+      response.code(404);
+      return response;
+    }
+  } catch (error) {
     const response = h.response({
-      status: "success",
-      message: "Pasien berhasil diperbarui",
+      status: "error",
+      message: "Terjadi kesalahan saat memperbarui pasien",
+      error: error.message,
     });
-    response.code(200);
+    response.code(500);
     return response;
   }
-
-  const response = h.response({
-    status: "fail",
-    message: "Gagal memperbarui pasien. Id tidak ditemukan",
-  });
-  response.code(404);
-  return response;
 };
 
-const deletePasienByIdHandler = (request, h) => {
+const deletePasienByIdHandler = async (request, h) => {
   const { pasienId } = request.params;
 
-  const index = pasiens.findIndex((p) => p.pasien_id === parseInt(pasienId));
-
-  if (index !== -1) {
-    pasiens.splice(index, 1);
+  try {
+    const deletedPasien = await Patient.findByIdAndDelete(pasienId);
+    if (deletedPasien) {
+      const response = h.response({
+        status: "success",
+        message: "Pasien berhasil dihapus",
+      });
+      response.code(200);
+      return response;
+    } else {
+      const response = h.response({
+        status: "fail",
+        message: "Pasien gagal dihapus. Id tidak ditemukan",
+      });
+      response.code(404);
+      return response;
+    }
+  } catch (error) {
     const response = h.response({
-      status: "success",
-      message: "Pasien berhasil dihapus",
+      status: "error",
+      message: "Terjadi kesalahan saat menghapus pasien",
+      error: error.message,
     });
-    response.code(200);
+    response.code(500);
     return response;
   }
-
-  const response = h.response({
-    status: "fail",
-    message: "Pasien gagal dihapus. Id tidak ditemukan",
-  });
-  response.code(404);
-  return response;
 };
 
 module.exports = {
